@@ -8,6 +8,8 @@ function VoiceButton() {
     const [conversationHistory, setConversationHistory] = useState([]);
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [calendarConnected, setCalendarConnected] = useState(false);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -18,10 +20,13 @@ function VoiceButton() {
         try {
             const res = await fetch(`${API_BASE}/health`);
             if (res.ok) {
+                const data = await res.json();
                 setBackendConnected(true);
+                setCalendarConnected(data.logged_in);
             }
         } catch {
             setBackendConnected(false);
+            setCalendarConnected(false);
         }
     }, []);
 
@@ -31,9 +36,29 @@ function VoiceButton() {
         return () => clearInterval(interval);
     }, [checkStatus]);
 
+    useEffect(() => {
+        let interval;
+        if (isLoggingIn) {
+            interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/check-login`);
+                    const data = await res.json();
+                    if (data.logged_in) {
+                        setCalendarConnected(true);
+                        setIsLoggingIn(false);
+                        addToHistory('System', 'Connected to Google Calendar!');
+                    }
+                } catch (e) {
+                    console.error('Login check error:', e);
+                }
+            }, 2000);
+        }
+        return () => interval && clearInterval(interval);
+    }, [isLoggingIn]);
+
     const playAudio = async (url) => {
         if (url) {
-            stopAudio()
+            stopAudio();
             const audio = new Audio(`${API_BASE}${url}`);
             currentAudioRef.current = audio;
             await audio.play();
@@ -59,12 +84,39 @@ function VoiceButton() {
         }
     };
 
+    const checkCalendarLogin = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/login-status`);
+            const data = await res.json();
+            
+            if (!data.logged_in) {
+                addToHistory('Assistant', data.message);
+                if (data.audio_url) {
+                    await playAudio(data.audio_url);
+                }
+                setIsLoggingIn(true);
+                return false;
+            }
+            return true;
+        } catch (e) {
+            console.error('Login check error:', e);
+            return false;
+        }
+    };
+
     const addToHistory = (role, message) => {
         setConversationHistory(prev => [...prev, { role, message, time: new Date() }]);
     };
 
     const startRecording = async () => {
-        stopAudio()
+        stopAudio();
+
+        if (!calendarConnected) {
+            const isLoggedIn = await checkCalendarLogin();
+            if (!isLoggedIn) {
+                return;
+            }
+        }
 
         if (!greeted) {
             await playGreeting();
@@ -121,7 +173,7 @@ function VoiceButton() {
             }
         } catch (e) {
             const msg = 'Error processing audio';
-            addToHistory('System', `${msg}`);
+            addToHistory('System', msg);
         } finally {
             setIsProcessing(false);
         }
@@ -140,35 +192,40 @@ function VoiceButton() {
             
             <div className="status-panel">
                 <div className={`status-item ${backendConnected ? 'connected' : 'disconnected'}`}>
-                    {backendConnected ? '✅ Backend Connected' : '❌ Backend Disconnected'}
+                    {backendConnected ? '✅ Backend' : '❌ Backend'}
+                </div>
+                <div className={`status-item ${calendarConnected ? 'connected' : 'disconnected'}`}>
+                    {calendarConnected ? '✅ Calendar' : '❌ Calendar'}
                 </div>
             </div>
 
             <div className="controls">
                 <button
                     onClick={isRecording ? stopRecording : startRecording}
-                    disabled={!backendConnected}
+                    disabled={!backendConnected || isLoggingIn}
                     className={`voice-button ${isRecording ? 'recording' : ''}`}
                 >
                     {isProcessing
                         ? 'Processing...'
-                        : isRecording
-                            ? 'Stop Recording'
-                            : 'Start Recording'}
+                        : isLoggingIn
+                            ? 'Waiting for login...'
+                            : isRecording
+                                ? 'Stop Recording'
+                                : 'Start Recording'}
                 </button>
             </div>
 
             <h3>Conversation</h3>
-                <div className="history-list">
-                    {conversationHistory.map((item, i) => (
-                        <div key={i} className={`history-item ${item.role}`}>
-                            <span className="role-indicator">
-                                {`${item.role}: `}
-                            </span>
-                            <span className="message">{item.message}</span>
-                        </div>
-                    ))}
-                </div>
+            <div className="history-list">
+                {conversationHistory.map((item, i) => (
+                    <div key={i} className={`history-item ${item.role}`}>
+                        <span className="role-indicator">
+                            {`${item.role}: `}
+                        </span>
+                        <span className="message">{item.message}</span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
