@@ -2,6 +2,7 @@
 Voice Handler - OpenAI Whisper STT and TTS
 """
 import os
+import io
 from pathlib import Path
 from datetime import datetime
 from openai import OpenAI
@@ -59,5 +60,33 @@ class VoiceHandler:
         except Exception as e:
             print(f"TTS error: {e}")
             return None
+    
+    def transcribe(self, audio_data: bytes, filename: str = "audio.webm") -> str:
+        """
+        Transcribe audio using OpenAI Whisper.
+        
+        Args:
+            audio_data: Raw audio bytes
+            filename: Original filename (for format detection)
+            
+        Returns:
+            Transcribed text
+        """
+        try:
+            audio_file = io.BytesIO(audio_data)
+            audio_file.name = filename
+            
+            transcript = self.client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="text"
+            )
+            
+            print(f"Transcribed: {transcript[:50]}")
+            return transcript.strip()
+            
+        except Exception as e:
+            print(f"Transcription error: {e}")
+            raise
 
 __all__ = ['VoiceHandler']

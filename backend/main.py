@@ -2,7 +2,7 @@
 Calendar Assistance - Fast API main
 """
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -58,10 +58,46 @@ async def health_check():
         "status": "healthy"
     }
 
-
 @app.get("/start-conversation")
 async def start_conversation():
     return {
         "audio_url": "/audio/greeting.mp3",
         "message": greeting
     }
+
+@app.post("/schedule")
+async def schedule(audio: UploadFile = File(...)):
+    """Transcribe audio and process the schedule request.
+        "transcript": "" <= user input (text)
+        "message": "" <= system output (text)
+    """
+    try:
+        # Transcribe
+        audio_data = await audio.read()
+        user_text = voice_handler.transcribe(audio_data, audio.filename)
+        
+        if not user_text:
+            message = "I didn't catch that. Could you please try again?"
+            return {
+                "transcript": "",
+                "message": message,
+                "success": False,
+                "audio_url": voice_handler.text_to_speech(message)
+            }
+
+        return {
+            "transcript": user_text,
+            "message": user_text, #debug
+            "success": True,
+            "audio_url": voice_handler.text_to_speech(user_text)
+        }
+        
+    except Exception as e:
+        message = "Sorry, there was an error processing your audio."
+        return {
+            "transcript": "",
+            "message": message,
+            "success": False,
+            "error": str(e),
+            "audio_url": voice_handler.text_to_speech(message)
+        }
