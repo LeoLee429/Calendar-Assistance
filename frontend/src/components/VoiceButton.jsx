@@ -5,6 +5,7 @@ const API_BASE = 'http://localhost:8000';
 function VoiceButton() {
     const [backendConnected, setBackendConnected] = useState(false);
     const [greeted, setGreeted] = useState(false);
+    const [conversationHistory, setConversationHistory] = useState([]);
 
     // Check backend status
     const checkStatus = useCallback(async () => {
@@ -35,11 +36,16 @@ function VoiceButton() {
         try {
             const res = await fetch(`${API_BASE}/start-conversation`);
             const data = await res.json();
+            addToHistory('Assistant', data.message);
             await playAudio(data.audio_url);
             setGreeted(true);
         } catch (e) {
             console.error('Greeting error:', e);
         }
+    };
+
+    const addToHistory = (role, message) => {
+        setConversationHistory(prev => [...prev, { role, message, time: new Date() }]);
     };
 
     const recordAudio = async () => {
@@ -66,6 +72,18 @@ function VoiceButton() {
                     <span>Press to speak</span>
                 </button>
             </div>
+
+            <h3>Conversation</h3>
+                <div className="history-list">
+                    {conversationHistory.map((item, i) => (
+                        <div key={i} className={`history-item ${item.role}`}>
+                            <span className="role-indicator">
+                                {`${item.role}: `}
+                            </span>
+                            <span className="message">{item.message}</span>
+                        </div>
+                    ))}
+                </div>
         </div>
     );
 }
