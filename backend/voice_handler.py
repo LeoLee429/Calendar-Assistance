@@ -1,11 +1,12 @@
 """
-Voice Handler - OpenAI Whisper STT and TTS
+Voice Handler - OpenAI Whisper STT and gTTS
 """
 import os
 import io
 from pathlib import Path
 from datetime import datetime
 from openai import OpenAI
+from gtts import gTTS
 
 class VoiceHandler:
     """Handles STT and TTS"""
@@ -20,33 +21,21 @@ class VoiceHandler:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         print(f"VoiceHandler initialized.")
     
-    def text_to_speech(self, text: str, filename: str | None = None) -> str:
-        """
-        Convert text to speech using OpenAI TTS.
-        
-        Args:
-            text: Text to convert
-            voice: Voice to use (alloy, echo, fable, onyx, nova, shimmer)
-            filename (Optional): Output filename. Mainly for greeting.
-            
-        Returns:
-            URL path to audio file
-        """
+    def text_to_speech(self, text: str, filename: str = None) -> str:
+        """Convert text to speech using gTTS."""
         try:
-            if not filename:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')[:-3]
-                filename = f"tts_{timestamp}.mp3"
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S%f')[:-3]
+            filename = filename or f"tts_{timestamp}.mp3"
             filepath = os.path.join(self.output_dir, filename)
             
-            response = self.client.audio.speech.create(
-                model="tts-1",
-                voice=self.voice,
-                input=text
-            )
+            # Detect chinese
+            has_chinese = any('\u4e00' <= char <= '\u9fff' for char in text)
+            lang = 'zh-CN' if has_chinese else 'en'
             
-            response.stream_to_file(filepath)
+            tts = gTTS(text=text, lang=lang)
+            tts.save(filepath)
+            
             print(f"TTS saved: {filepath}")
-            
             return f"/audio/{filename}"
             
         except Exception as e:

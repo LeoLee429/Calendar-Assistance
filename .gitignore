@@ -213,4 +213,4 @@ Thumbs.db
 # Other temporary files
 tmp/
 temp/
-/backend/static
+*.mp3
