@@ -96,7 +96,7 @@ class ScheduleParser:
         
         if "error" in result:
             field = result.get("field", "general")
-            print(f"🔍 GPT error field: '{field}'")
+            print(f"GPT error field: '{field}'")
             
             # Parse multiple fields
             if "|" in field:

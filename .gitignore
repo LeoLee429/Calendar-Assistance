@@ -214,3 +214,4 @@ Thumbs.db
 tmp/
 temp/
 *.mp3
+/backend/auth
