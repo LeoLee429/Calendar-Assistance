@@ -6,6 +6,11 @@ function VoiceButton() {
     const [backendConnected, setBackendConnected] = useState(false);
     const [greeted, setGreeted] = useState(false);
     const [conversationHistory, setConversationHistory] = useState([]);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+
+    const mediaRecorderRef = useRef(null);
+    const audioChunksRef = useRef([]);
 
     // Check backend status
     const checkStatus = useCallback(async () => {
@@ -48,11 +53,74 @@ function VoiceButton() {
         setConversationHistory(prev => [...prev, { role, message, time: new Date() }]);
     };
 
-    const recordAudio = async () => {
-        if (!greeted){
-            playGreeting()
+    const startRecording = async () => {
+        if (!greeted) {
+            await playGreeting();
         }
-    }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    audioChunksRef.current.push(e.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                stream.getTracks().forEach(track => track.stop());
+                await sendAudioToBackend(audioBlob);
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (e) {
+            console.error('Microphone error:', e);
+            addToHistory('System', 'Could not access microphone');
+        }
+    };
+
+    const sendAudioToBackend = async (audioBlob) => {
+        setIsProcessing(true);
+
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.webm');
+
+            const res = await fetch(`${API_BASE}/schedule`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            
+            if (data.transcript) {
+                addToHistory('User', data.transcript);
+            }
+            
+            addToHistory('Assistant', data.message);
+            
+            if (data.audio_url) {
+                await playAudio(data.audio_url);
+            }
+        } catch (e) {
+            const msg = 'Error processing audio';
+            addToHistory('System', `${msg}`);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
 
     return (
         <div className="voice-assistant">
@@ -60,16 +128,21 @@ function VoiceButton() {
             
             <div className="status-panel">
                 <div className={`status-item ${backendConnected ? 'connected' : 'disconnected'}`}>
-                    {backendConnected ? '✅' : '❌'} Backend
+                    {backendConnected ? '✅ Backend Connected' : '❌ Backend Disconnected'}
                 </div>
             </div>
 
             <div className="controls">
                 <button
-                    onClick={recordAudio}
+                    onClick={isRecording ? stopRecording : startRecording}
                     disabled={!backendConnected}
+                    className={`voice-button ${isRecording ? 'recording' : ''}`}
                 >
-                    <span>Press to speak</span>
+                    {isProcessing
+                        ? 'Processing...'
+                        : isRecording
+                            ? 'Stop Recording'
+                            : 'Start Recording'}
                 </button>
             </div>
 
