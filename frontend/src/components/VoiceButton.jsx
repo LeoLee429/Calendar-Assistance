@@ -11,6 +11,7 @@ function VoiceButton() {
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
+    const currentAudioRef = useRef(null);
 
     // Check backend status
     const checkStatus = useCallback(async () => {
@@ -32,8 +33,17 @@ function VoiceButton() {
 
     const playAudio = async (url) => {
         if (url) {
+            stopAudio()
             const audio = new Audio(`${API_BASE}${url}`);
+            currentAudioRef.current = audio;
             await audio.play();
+        }
+    };
+
+    const stopAudio = () => {
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current = null;
         }
     };
 
@@ -54,6 +64,8 @@ function VoiceButton() {
     };
 
     const startRecording = async () => {
+        stopAudio()
+
         if (!greeted) {
             await playGreeting();
         }
