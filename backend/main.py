@@ -14,6 +14,8 @@ from ai_service import AIService, ScheduleParseError, get_ai_service
 from calendar_automation import CalendarAutomation, get_calendar_automation
 from conversation_context import get_context
 
+os.makedirs(STATIC_FOLDER, exist_ok=True)
+
 # Global instances
 voice_handler: VoiceHandler = None
 ai_service: AIService = None
@@ -24,7 +26,6 @@ STATIC_FOLDER = "static/audio"
 GREETING = "Hello, I am your scheduling assistance. How may I help you?"
 MESSAGES: dict = None
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global voice_handler, ai_service, calendar_automation
@@ -33,8 +34,6 @@ async def lifespan(app: FastAPI):
     
     _load_env()
     _load_messages()
-    
-    os.makedirs(STATIC_FOLDER, exist_ok=True)
 
     voice_handler = VoiceHandler(output_dir=STATIC_FOLDER)
     ai_service = get_ai_service()
