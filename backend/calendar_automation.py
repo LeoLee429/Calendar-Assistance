@@ -3,11 +3,11 @@ Google Calendar Automation using Playwright.
 """
 import asyncio
 import os
-import re
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 from playwright.async_api import async_playwright, Browser, Page, BrowserContext
-import urllib.parse
+from typing import Optional
 
 
 class CalendarAutomation:
@@ -358,7 +358,7 @@ class CalendarAutomation:
     def _has_saved_state(self) -> bool:
         return os.path.exists(self.STORAGE_STATE_PATH)
 
-_calendar_instance: CalendarAutomation = None
+_calendar_instance: Optional[CalendarAutomation] = None
 
 
 def get_calendar_automation() -> CalendarAutomation:

@@ -223,16 +223,12 @@ Use this context to understand follow-up responses. For example:
         
         user_prompt = f"{proposed_start.strftime('%I:%M %p')} to {proposed_end.strftime('%I:%M %p')}"
         
-        try:
-            result = self._call_openai(system_prompt, user_prompt, max_tokens=100)
-            
-            if result.get("conflict"):
-                return False, result.get("event_title", "an existing event")
-            return True, None
-            
-        except ScheduleParseError:
-            # On API error, assume no conflict to avoid blocking
-            return True, None
+        result = self._call_openai(system_prompt, user_prompt, max_tokens=100)
+        print(f"Conflict check result: {result}")
+        
+        if result.get("conflict"):
+            return False, result.get("event_title", "an existing event")
+        return True, None
 
 
 # Global instance
