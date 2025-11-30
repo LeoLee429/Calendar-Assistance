@@ -87,6 +87,7 @@ async def health_check():
 @app.get("/start-conversation")
 async def start_conversation():
     get_context().clear()
+    voice_handler.set_language('en')
     return _build_response(GREETING, success=True)
 
 
