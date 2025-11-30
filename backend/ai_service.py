@@ -20,7 +20,7 @@ class ScheduleParseError(Exception):
 class AIService:
     """Handles all OpenAI interactions for schedule parsing and conflict checking."""
     
-    MODEL = "gpt-4o"
+    MODEL = "gpt-4o-mini"
     PROMPTS_DIR = Path(__file__).parent / "prompt"
     
     def __init__(self):
@@ -77,6 +77,7 @@ class AIService:
         
         Args:
             text: User's natural language input
+            context: Optional context from previous conversation turns
             
         Returns:
             dict with keys: title, date, start_time, end_time
@@ -111,8 +112,9 @@ Use this context to understand follow-up responses. For example:
         )
         
         result = self._call_openai(system_prompt, text.strip())
-        print(f"Schedule Parse - LLM response: {result}")  # Debug
+        print(f"LLM response: {result}")  # Debug
         
+        # Handle partial/error responses
         if result.get("partial") or "error" in result:
             partial_data = self._extract_partial_data(result)
             field = self._normalize_field(result.get("field", "general"))
@@ -123,7 +125,6 @@ Use this context to understand follow-up responses. For example:
     
     def _extract_partial_data(self, result: dict) -> dict:
         """Extract any partial data from an incomplete parse result."""
-        
         # Sanitize: convert string "null" to None
         for key in result:
             if result[key] == "null":
@@ -151,6 +152,8 @@ Use this context to understand follow-up responses. For example:
                 )
             except ValueError:
                 pass
+        if result.get('lang'):
+            partial['lang'] = result['lang']
         return partial
     
     def _normalize_field(self, field: str) -> str:
@@ -164,6 +167,11 @@ Use this context to understand follow-up responses. For example:
     
     def _parse_result_to_event(self, result: dict) -> dict:
         """Convert parsed result to event dict with datetime objects."""
+        # Sanitize: convert string "null" to None
+        for key in result:
+            if result[key] == "null":
+                result[key] = None
+        
         # Check required fields first
         required = ['title', 'date', 'start_time', 'end_time']
         missing = [f for f in required if not result.get(f)]
@@ -192,7 +200,8 @@ Use this context to understand follow-up responses. For example:
             'title': result['title'],
             'date': date,
             'start_time': start_time,
-            'end_time': end_time
+            'end_time': end_time,
+            'lang': result.get('lang', 'en')
         }
     
     def check_conflict(
@@ -229,7 +238,7 @@ Use this context to understand follow-up responses. For example:
         user_prompt = f"{proposed_start.strftime('%I:%M %p')} to {proposed_end.strftime('%I:%M %p')}"
         
         result = self._call_openai(system_prompt, user_prompt, max_tokens=100)
-        print(f"Conflict check - LLM response: {result}")  # Debug
+        print(f"Conflict check result: {result}")
         
         if result.get("conflict"):
             return False, result.get("event_title", "an existing event")

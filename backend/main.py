@@ -2,6 +2,7 @@
 Calendar Assistance - FastAPI main
 """
 import os
+import json
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -18,36 +19,24 @@ voice_handler: VoiceHandler = None
 ai_service: AIService = None
 calendar_automation: CalendarAutomation = None
 
-# Global variables
-staticFolder: str = "static/audio"
-greeting: str = "Hello, I am your scheduling assistance. How may I help you?"
+# Constants
+STATIC_FOLDER = "static/audio"
+GREETING = "Hello, I am your scheduling assistance. How may I help you?"
+MESSAGES: dict = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan - startup events."""
     global voice_handler, ai_service, calendar_automation
 
     print("Voice Calendar Assistant initiating...")
-
-    # Create directory if not exist
-    os.makedirs(staticFolder, exist_ok=True)
-
-    # Load .env from same directory as this script
-    from dotenv import load_dotenv
-    env_file = Path(__file__).parent / ".env"
     
-    if not env_file.exists():
-        env_file.write_text("OPENAI_API_KEY=\n")
-        raise FileNotFoundError(f".env not found. Created at {env_file}. Please add your API key.")
+    _load_env()
+    _load_messages()
     
-    load_dotenv(env_file)
-    
-    if not os.getenv("OPENAI_API_KEY"):
-        raise ValueError(f"OPENAI_API_KEY is empty in {env_file}")
+    os.makedirs(STATIC_FOLDER, exist_ok=True)
 
-    # Service init
-    voice_handler = VoiceHandler(output_dir=staticFolder)
+    voice_handler = VoiceHandler(output_dir=STATIC_FOLDER)
     ai_service = get_ai_service()
     calendar_automation = get_calendar_automation()
 
@@ -58,10 +47,9 @@ async def lifespan(app: FastAPI):
         print("Please login to Google Calendar when prompted")
 
     greeting_file_name: str = "greeting.mp3"
-    # Generate greeting audio if not exist
-    greeting_path = staticFolder + '/' + greeting_file_name
+    greeting_path = STATIC_FOLDER + '/' + greeting_file_name
     if not os.path.exists(greeting_path):
-        voice_handler.text_to_speech(greeting, filename=greeting_file_name)
+        voice_handler.text_to_speech(GREETING, filename=greeting_file_name)
     
     yield
 
@@ -85,7 +73,7 @@ app.add_middleware(
 )
 
 # Serve static
-app.mount("/audio", StaticFiles(directory="static/audio"), name="audio")
+app.mount("/audio", StaticFiles(directory=STATIC_FOLDER), name="audio")
 
 
 @app.get("/health")
@@ -98,8 +86,8 @@ async def health_check():
 
 @app.get("/start-conversation")
 async def start_conversation():
-    get_context().clear()  # Fresh start
-    return _build_response(greeting, success=True)
+    get_context().clear()
+    return _build_response(GREETING, success=True)
 
 
 @app.post("/schedule")
@@ -113,7 +101,7 @@ async def schedule(audio: UploadFile = File(...)):
     user_text = voice_handler.transcribe(audio_data, audio.filename)
     
     if not user_text:
-        return _build_response("I didn't catch that. Could you please try again?", success=False)
+        return _build_response(_get_message('not_heard'), success=False)
     
     # Parse with context
     event, error = _parse_schedule(user_text, context)
@@ -128,7 +116,7 @@ async def schedule(audio: UploadFile = File(...)):
 @app.get("/login-status")
 async def get_login_status():
     if not calendar_automation.is_logged_in:
-        message = "Please login to Google Calendar first. I am opening the login page for you."
+        message = _get_message('login')
         await calendar_automation.start_manual_login()
         return {
             "logged_in": False,
@@ -160,29 +148,66 @@ async def clear_context_endpoint():
     return {"message": "Context cleared", "success": True}
 
 
+def _load_env():
+    from dotenv import load_dotenv
+    env_file = Path(__file__).parent / ".env"
+    
+    if not env_file.exists():
+        env_file.write_text("OPENAI_API_KEY=\n")
+        raise FileNotFoundError(f".env not found. Created at {env_file}. Please add your API key.")
+    
+    load_dotenv(env_file)
+    
+    if not os.getenv("OPENAI_API_KEY"):
+        raise ValueError(f"OPENAI_API_KEY is empty in {env_file}")
+
+
+def _load_messages():
+    global MESSAGES
+    msg_file = Path(__file__).parent / "messages.json"
+    with open(msg_file, 'r', encoding='utf-8') as f:
+        MESSAGES = json.load(f)
+
+
+def _get_message(key: str, lang: str = None, **kwargs) -> str:
+    lang = lang or voice_handler.language if voice_handler else 'en'
+    msgs = MESSAGES.get(lang, MESSAGES['en'])
+    return msgs.get(key, MESSAGES['en'][key]).format(**kwargs)
+
+
+def _format_time(dt, lang: str = None) -> str:
+    lang = lang or voice_handler.language if voice_handler else 'en'
+    if lang in ['zh-CN', 'zh-TW']:
+        return dt.strftime('%m月%d日 %H:%M')
+    return dt.strftime('%B %d at %I:%M %p')
+
 def _parse_schedule(text: str, context=None) -> tuple[dict | None, str | None]:
     """
     Parse schedule from text, optionally using context for multi-turn.
     Returns (event, None) on success, (None, error_message) on failure.
     """
     try:
-        # Get context hint for parser
         context_str = context.get_context_for_parser() if context else ""
         parsed = ai_service.parse_schedule(text, context_str)
         
-        # Try to merge with stored partial data
+        if parsed.get('lang'):
+            voice_handler.set_language(parsed['lang'])
+        
         if context:
             event = context.merge(parsed)
             if event:
+                event['lang'] = parsed.get('lang', 'en')
                 return event, None
         
         return parsed, None
     
     except ScheduleParseError as spe:
         if spe.field == "api_error":
-            return None, f"Service error: {spe.message}"
+            return None, _get_message('error')
         
-        # Store partial data for next turn
+        if spe.partial_data and spe.partial_data.get('lang'):
+            voice_handler.set_language(spe.partial_data['lang'])
+        
         if context and spe.partial_data:
             event = context.merge(spe.partial_data)
             if event:
@@ -195,13 +220,12 @@ def _parse_schedule(text: str, context=None) -> tuple[dict | None, str | None]:
         print(f"Unexpected error type: {type(e).__name__}")
         print(f"Unexpected error: {e}")
         traceback.print_exc()
-        return None, "Sorry, there was an unexpected error."
+        return None, _get_message('error')
 
 
 def _check_calendar_login() -> tuple[bool, str | None]:
-    """Check if calendar is ready."""
     if not calendar_automation.is_logged_in:
-        return False, "Please login to Google Calendar first."
+        return False, _get_message('login')
     return True, None
 
 
@@ -218,6 +242,7 @@ async def _create_calendar_event(event: dict, context=None) -> tuple[bool, str |
         # Fetch existing events for the date
         existing_events = await calendar_automation.get_events_for_date(event['start_time'])
         
+        # Check for conflicts using AI
         is_available, conflict_info = ai_service.check_conflict(
             existing_events,
             event['start_time'],
@@ -225,32 +250,29 @@ async def _create_calendar_event(event: dict, context=None) -> tuple[bool, str |
         )
         
         if not is_available:
-            time_str = event['start_time'].strftime('%B %d at %I:%M %p')
-            
             if context:
                 context.clear_for_reschedule()
             
             await calendar_automation.show_calendar_date(event['start_time'])
-            conflict_detail = f" with '{conflict_info}'" if conflict_info else ""
-            return False, f"You have a conflict at {time_str}{conflict_detail}. What time works better?"
+            time_str = _format_time(event['start_time'])
+            return False, _get_message('conflict', time=time_str, event=conflict_info or '')
         
         # Create event
-        success, message = await calendar_automation.create_event(
+        success= await calendar_automation.create_event(
             event['title'], event['start_time'], event['end_time']
         )
         
         if success:
-            # Clear context on success
             if context:
                 context.clear()
-            time_str = event['start_time'].strftime('%B %d at %I:%M %p')
-            return True, f"Done! Added '{event['title']}' to your calendar for {time_str}."
+            time_str = _format_time(event['start_time'])
+            return True, _get_message('success', title=event['title'], time=time_str)
         else:
-            return False, f"Failed to create event: {message}"
+            return False, _get_message('error')
     
     except Exception as e:
         print(f"Calendar error: {e}")
-        return False, "Sorry, there was an error with Google Calendar."
+        return False, _get_message('error')
 
 
 def _build_response(message: str, success: bool, transcript: str = "", with_audio: bool = True):

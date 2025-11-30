@@ -189,7 +189,7 @@ class CalendarAutomation:
 
     async def create_event(self, title: str, start_time: datetime, end_time: datetime) -> tuple[bool, str]:
         if not self._is_logged_in:
-            return False, "Please login to Google Calendar first."
+            return False
         
         for attempt in range(2):
             try:
@@ -243,7 +243,7 @@ class CalendarAutomation:
                 except:
                     pass
                 
-                return True, f"Event '{title}' scheduled"
+                return True
                 
             except Exception as e:
                 print(f"Error creating event (attempt {attempt + 1}): {e}")
@@ -254,9 +254,9 @@ class CalendarAutomation:
                         await self._switch_to_visible()
                     except:
                         pass
-                    return False, "Please try again."
+                    return False
         
-        return False, "Please try again."
+        return False
     
     async def close(self):
         try:

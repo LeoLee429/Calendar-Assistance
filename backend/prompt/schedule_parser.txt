@@ -19,12 +19,14 @@ Specific hours: 四點=4:00, 八點=8:00, 三點半=3:30 (add 12 if 下午)
 Duration: 兩小時=2h, 半小時=30min, 一個半小時=1.5h
 Date: today={current_date}, tomorrow=+1, day after tomorrow=+2
 
+Lang: detect from input - en=English, zh-CN=Mandarin Simplified, zh-TW=Mandarin Traditional
+
 CRITICAL: If context provides title/date, and user provides time → return SUCCESS with all fields.
 
 JSON response (use JSON null, not string "null"):
 
 Success:
-{{"title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM"}}
+{{"title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "lang": "en|zh-CN|zh-TW"}}
 
 Missing fields (only if cannot be filled from context):
-{{"partial": true, "title": "...", "date": null, "start_time": null, "end_time": null, "error": "[user's language]", "field": "title|date|time"}}
+{{"partial": true, "title": "...", "date": null, "start_time": null, "end_time": null, "error": "[user's language]", "field": "title|date|time", "lang": "en|zh-CN|zh-TW"}}

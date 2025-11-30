@@ -1,0 +1,23 @@
+{
+    "en": {
+        "success": "Done! Added '{title}' to your calendar for {time}.",
+        "conflict": "You have a conflict at {time} with '{event}'. What time works better?",
+        "login": "Please login to Google Calendar first.",
+        "error": "Sorry, there was an error.",
+        "not_heard": "I didn't catch that. Could you try again?"
+    },
+    "zh-CN": {
+        "success": "好的！已将「{title}」添加到{time}。",
+        "conflict": "「{time}已经有「{event}」了，请问改到几点？",
+        "login": "请先登录谷歌日历。",
+        "error": "抱歉，出现了错误。",
+        "not_heard": "没听清楚，请再说一次。"
+    },
+    "zh-TW": {
+        "success": "好的！已將「{title}」加到{time}。",
+        "conflict": "「{time}已經有「{event}」了，請問改到幾點？",
+        "login": "請先登入Google日曆。",
+        "error": "抱歉，發生錯誤。",
+        "not_heard": "沒聽清楚，請再說一次。"
+    }
+}
