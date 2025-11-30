@@ -5,20 +5,18 @@ Date: {date}
 Existing events:
 {events}
 
-Determine if the proposed time OVERLAPS with any existing event.
+STEP 1: Translate Chinese times:
+- "上午" = AM, "下午" = PM
+- "下午2點 至 下午3點" = 2:00 PM to 3:00 PM
 
-CRITICAL RULES:
-1. ONLY a conflict if times actually OVERLAP (both events happening at the same moment)
-2. Back-to-back is NOT a conflict:
-   - Event A ends at 3:00pm, Event B starts at 3:00pm → NO conflict
-   - Event A ends at 3:00pm, Event B starts at 3:10pm → NO conflict
-3. Overlap examples:
-   - Event 2:00-3:30pm, proposed 3:00-4:00pm → CONFLICT (overlaps 3:00-3:30)
-   - Event 2:00-3:00pm, proposed 3:00-4:00pm → NO conflict (adjacent)
-   - Event 2:00-3:00pm, proposed 3:10-4:00pm → NO conflict
-4. All-day events conflict with any time on that day
-5. Parse times carefully from event text (may be in various formats/languages)
+STEP 2: Check overlap using this rule:
+- CONFLICT: proposed_start < event_end AND proposed_end > event_start
+- NO CONFLICT if proposed_start >= event_end (back-to-back is OK)
 
-Respond JSON only:
-- No conflict: {{"conflict": false}}
-- Conflict: {{"conflict": true, "event_title": "event name"}}
+Examples:
+- Event 2-3 PM, Proposed 3-4 PM → NO conflict (3 >= 3, back-to-back)
+- Event 2-3 PM, Proposed 2:30-3:30 PM → CONFLICT (2:30 < 3 AND 3:30 > 2)
+- Event 7-8 AM, Proposed 3-4 PM → NO conflict (different times)
+
+JSON:
+{{"conflict": false}} or {{"conflict": true, "event_title": "..."}}

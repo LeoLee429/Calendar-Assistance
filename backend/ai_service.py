@@ -20,7 +20,7 @@ class ScheduleParseError(Exception):
 class AIService:
     """Handles all OpenAI interactions for schedule parsing and conflict checking."""
     
-    MODEL = "gpt-4o-mini"
+    MODEL = "gpt-4o"
     PROMPTS_DIR = Path(__file__).parent / "prompt"
     
     def __init__(self):
@@ -77,7 +77,6 @@ class AIService:
         
         Args:
             text: User's natural language input
-            context: Optional context from previous conversation turns
             
         Returns:
             dict with keys: title, date, start_time, end_time
@@ -112,7 +111,7 @@ Use this context to understand follow-up responses. For example:
         )
         
         result = self._call_openai(system_prompt, text.strip())
-        print(f"LLM response: {result}")  # Debug
+        print(f"Schedule Parse - LLM response: {result}")  # Debug
         
         if result.get("partial") or "error" in result:
             partial_data = self._extract_partial_data(result)
@@ -124,6 +123,12 @@ Use this context to understand follow-up responses. For example:
     
     def _extract_partial_data(self, result: dict) -> dict:
         """Extract any partial data from an incomplete parse result."""
+        
+        # Sanitize: convert string "null" to None
+        for key in result:
+            if result[key] == "null":
+                result[key] = None
+        
         partial = {}
         if result.get('title'):
             partial['title'] = result['title']
@@ -224,7 +229,7 @@ Use this context to understand follow-up responses. For example:
         user_prompt = f"{proposed_start.strftime('%I:%M %p')} to {proposed_end.strftime('%I:%M %p')}"
         
         result = self._call_openai(system_prompt, user_prompt, max_tokens=100)
-        print(f"Conflict check result: {result}")
+        print(f"Conflict check - LLM response: {result}")  # Debug
         
         if result.get("conflict"):
             return False, result.get("event_title", "an existing event")
