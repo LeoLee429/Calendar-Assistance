@@ -14,8 +14,6 @@ from ai_service import AIService, ScheduleParseError, get_ai_service
 from calendar_automation import CalendarAutomation, get_calendar_automation
 from conversation_context import get_context
 
-
-
 # Global instances
 voice_handler: VoiceHandler = None
 ai_service: AIService = None
@@ -25,6 +23,7 @@ calendar_automation: CalendarAutomation = None
 STATIC_FOLDER = "static/audio"
 GREETING = "Hello, I am your scheduling assistance. How may I help you?"
 MESSAGES: dict = None
+
 
 os.makedirs(STATIC_FOLDER, exist_ok=True)
 
