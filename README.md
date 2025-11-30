@@ -19,7 +19,7 @@ A voice-controlled scheduling assistant that automates Google Calendar operation
 - Browser Automation: Playwright
 - Speech-to-Text: OpenAI Whisper API
 - Text-to-Speech: Google TTS (gTTS)
-- NLP Parsing: OpenAI GPT-4o-mini
+- NLP Parsing: OpenAI GPT-4o
 
 ## Project Structure
 
