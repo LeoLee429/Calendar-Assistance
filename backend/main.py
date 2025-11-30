@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     schedule_parser = ScheduleParser()
     calendar_automation = get_calendar_automation()
 
-    logged_in = await calendar_automation.initialize(headless=False)
+    logged_in = await calendar_automation.initialize(headless=True)
     if logged_in:
         print("Google Calendar connected with saved login")
     else:
@@ -192,7 +192,7 @@ async def _create_calendar_event(event: dict) -> tuple[bool, str | None]:
         if not is_available:
             time_str = event['start_time'].strftime('%B %d at %I:%M %p')
             conflict_detail = f": {conflict_info}" if conflict_info else ""
-            return False, f"You have a conflict at {time_str}{conflict_detail}. Please choose another time."
+            return False, f"You have a conflict at {time_str}. Please choose another time."
         
         # Create event
         success, message = await calendar_automation.create_event(
