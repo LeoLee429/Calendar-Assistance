@@ -141,13 +141,6 @@ async def check_login():
     }
 
 
-@app.post("/clear-context")
-async def clear_context_endpoint():
-    """Clear conversation context (start fresh)."""
-    get_context().clear()
-    return {"message": "Context cleared", "success": True}
-
-
 def _load_env():
     from dotenv import load_dotenv
     env_file = Path(__file__).parent / ".env"
