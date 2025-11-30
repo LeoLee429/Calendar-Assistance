@@ -15,3 +15,74 @@
       margin: 1rem auto;
     }
   }
+
+/* --- CONTROL BUTTON WRAPPER --- */
+.controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+/* --- FIXED SIZES --- */
+.voice-button,
+.stop-button {
+  min-width: 220px;  /* <<< adjust to your liking */
+  text-align: center;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+/* --- VOICE BUTTON THEMING --- */
+.voice-button {
+  color: white;
+  background: linear-gradient(135deg, #4e8cff, #6a5cff);
+  box-shadow: 0 8px 20px rgba(60, 80, 220, 0.4);
+}
+
+/* Hover */
+.voice-button:hover:not(:disabled),
+.stop-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+/* Disabled */
+.voice-button:disabled,
+.stop-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.stop-button {
+  position: relative;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  color: white;
+  background: linear-gradient(135deg, #ff6b6b, #ff3b3b);
+  box-shadow: 0 8px 20px rgba(255, 80, 80, 0.4);
+  transition: 0.2s ease;
+}
+
+/* Invisible text sets constant width */
+.stop-button::before {
+  content: "Cancel Recording"; /* longest label */
+  visibility: hidden;
+  display: block;
+  height: 0;
+}
+
+/* Actual visible label */
+.stop-button-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 const API_BASE = 'http://localhost:8000';
 
-function VoiceButton() {
+function VoiceCalendarAssistance() {
     const [backendConnected, setBackendConnected] = useState(false);
     const [greeted, setGreeted] = useState(false);
     const [conversationHistory, setConversationHistory] = useState([]);
@@ -10,10 +10,13 @@ function VoiceButton() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [calendarConnected, setCalendarConnected] = useState(false);
     const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const currentAudioRef = useRef(null);
+    const cancelRecordingRef = useRef(false);
 
     // Check backend status
     const checkStatus = useCallback(async () => {
@@ -61,6 +64,13 @@ function VoiceButton() {
             stopAudio();
             const audio = new Audio(`${API_BASE}${url}`);
             currentAudioRef.current = audio;
+            
+            setIsAudioPlaying(true);
+
+            audio.onended = () => {
+                currentAudioRef.current = null;
+                setIsAudioPlaying(false);
+            };
             await audio.play();
         }
     };
@@ -69,6 +79,7 @@ function VoiceButton() {
         if (currentAudioRef.current) {
             currentAudioRef.current.pause();
             currentAudioRef.current = null;
+            setIsAudioPlaying(false);
         }
     };
 
@@ -120,6 +131,7 @@ function VoiceButton() {
 
         if (!greeted) {
             await playGreeting();
+            return;
         }
 
         try {
@@ -135,6 +147,12 @@ function VoiceButton() {
             };
 
             mediaRecorder.onstop = async () => {
+                const wasCancelled = cancelRecordingRef.current;
+                cancelRecordingRef.current = false;
+                if (wasCancelled) {
+                    addToHistory("System", "Recording cancelled");
+                    return;
+                }
                 const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 stream.getTracks().forEach(track => track.stop());
                 await sendAudioToBackend(audioBlob);
@@ -188,7 +206,7 @@ function VoiceButton() {
 
     return (
         <div className="voice-assistant">
-            <h1>📅 Calendar Voice Assistant</h1>
+            <h1>📅 Voice Calendar Assistant</h1>
             
             <div className="status-panel">
                 <div className={`status-item ${backendConnected ? 'connected' : 'disconnected'}`}>
@@ -211,7 +229,25 @@ function VoiceButton() {
                             ? 'Waiting for login...'
                             : isRecording
                                 ? 'Stop Recording'
-                                : 'Start Recording'}
+                                : 'Start Voice Conversation'}
+                </button>
+
+                <button
+                onClick={() => {
+                    if (isRecording) {
+                        cancelRecordingRef.current = true;
+                    }
+                    stopRecording();
+                    stopAudio();
+                }}
+                className="stop-button"
+                disabled={!isRecording && !isAudioPlaying}
+                >
+                {isRecording
+                ? "Cancel Recording"
+                : isAudioPlaying
+                    ? "Stop Audio"
+                    : "-"}
                 </button>
             </div>
 
@@ -219,10 +255,7 @@ function VoiceButton() {
             <div className="history-list">
                 {conversationHistory.map((item, i) => (
                     <div key={i} className={`history-item ${item.role}`}>
-                        <span className="role-indicator">
-                            {`${item.role}: `}
-                        </span>
-                        <span className="message">{item.message}</span>
+                        <strong>{item.role}:</strong> {item.message}
                     </div>
                 ))}
             </div>
@@ -230,4 +263,4 @@ function VoiceButton() {
     );
 }
 
-export default VoiceButton;
+export default VoiceCalendarAssistance;
