@@ -52,8 +52,8 @@ voice-calendar/
 
 ## Prerequisites
 
-- Python 3.10+
-- Node.js 18+
+- Python 3.12.2
+- Node.js 10.2.5
 - Google account
 - OpenAI API key
 
