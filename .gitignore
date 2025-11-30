@@ -215,3 +215,4 @@ tmp/
 temp/
 *.mp3
 /backend/auth
+frontend/package-lock.json
