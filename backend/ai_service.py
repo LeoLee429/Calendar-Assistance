@@ -20,7 +20,7 @@ class ScheduleParseError(Exception):
 class AIService:
     """Handles all OpenAI interactions for schedule parsing and conflict checking."""
     
-    MODEL = "gpt-4o-mini"
+    MODEL = "gpt-4o"
     PROMPTS_DIR = Path(__file__).parent / "prompt"
     
     def __init__(self):
