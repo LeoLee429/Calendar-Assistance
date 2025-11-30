@@ -11,7 +11,6 @@ import urllib.parse
 
 
 class CalendarAutomation:
-    """Automates Google Calendar operations via browser."""
     
     STORAGE_STATE_PATH = "auth/google_auth_state.json"
     GOOGLE_CALENDAR_URL = "https://calendar.google.com/calendar"
@@ -124,47 +123,69 @@ class CalendarAutomation:
                     return False
         return False
 
-    async def check_time_slot_available(self, start_time: datetime, end_time: datetime) -> tuple[bool, str]:
+    async def get_events_for_date(self, target_date: datetime) -> list[str]:
+        """
+        Fetch all event descriptions from the calendar for a given date.
+        Returns a list of raw event text strings (for AI processing).
+        """
         if not self._is_logged_in:
-            return False, "Not logged in"
+            return []
+        
+        # Multiple selectors for event elements (fallback chain)
+        event_selectors = [
+            '[data-eventid]',
+            '[role="button"][data-eventchip]',
+            '[data-eventchip="true"]',
+        ]
         
         for attempt in range(2):
             try:
                 await self._ensure_browser()
-                await self.navigate_to_date(start_time)
+                await self.navigate_to_date(target_date)
+                await asyncio.sleep(0.5)  # Allow events to render
                 
-                events = await self.page.query_selector_all('[data-eventid]')
-                
-                for event in events:
+                # Try each selector until we find events
+                event_elements = []
+                for selector in event_selectors:
                     try:
-                        event_text = await event.inner_text()
-                        if not event_text:
-                            continue
-                        
-                        print(f"Checking event: {event_text[:50]}...")
-                        
-                        event_start, event_end = self._parse_event_time(event_text, start_time)
-                        
-                        if event_start and event_end:
-                            if self._times_overlap(start_time, end_time, event_start, event_end):
-                                event_title = event_text.split('\n')[0] if '\n' in event_text else event_text[:30]
-                                print(f"Conflict detected with: {event_title}")
-                                await self._switch_to_visible()
-                                await self.navigate_to_date(start_time)
-                                return False, event_title
-                    except Exception as e:
-                        print(f"Error parsing event: {e}")
+                        event_elements = await self.page.query_selector_all(selector)
+                        if event_elements:
+                            print(f"Found {len(event_elements)} events using selector: {selector}")
+                            break
+                    except Exception:
                         continue
                 
-                return True, ""
+                events = []
+                for element in event_elements:
+                    try:
+                        text = await element.get_attribute('aria-label')
+                        if not text:
+                            text = await element.inner_text()
+                        if text and text.strip():
+                            events.append(text.strip())
+                    except Exception as e:
+                        print(f"Error extracting event text: {e}")
+                        continue
+                
+                print(f"Extracted {len(events)} events for {target_date.strftime('%Y-%m-%d')}")
+                return events
                 
             except Exception as e:
-                print(f"Error checking time slot (attempt {attempt + 1}): {e}")
+                print(f"Error fetching events (attempt {attempt + 1}): {e}")
                 if attempt == 0:
                     await self._reconnect(headless=self._is_headless)
-                else:
-                    return True, ""
-        return True, ""
+        
+        return []
+
+    async def show_calendar_date(self, target_date: datetime) -> bool:
+        """Switch to visible mode and navigate to a date (for user review)."""
+        try:
+            await self._switch_to_visible()
+            await self.navigate_to_date(target_date)
+            return True
+        except Exception as e:
+            print(f"Error showing calendar: {e}")
+            return False
 
     async def create_event(self, title: str, start_time: datetime, end_time: datetime) -> tuple[bool, str]:
         if not self._is_logged_in:
@@ -317,6 +338,7 @@ class CalendarAutomation:
         print("Switching to visible mode...")
         await self._reconnect(headless=False)
         self._is_headless = False
+        await self.page.bring_to_front()
 
     async def _switch_to_headless(self):
         if self._is_headless:
@@ -332,55 +354,9 @@ class CalendarAutomation:
         except Exception as e:
             print(f"Error saving login state: {e}")
     
-    def _times_overlap(self, start1: datetime, end1: datetime, start2: datetime, end2: datetime) -> bool:
-        return start1 < end2 and start2 < end1
 
     def _has_saved_state(self) -> bool:
         return os.path.exists(self.STORAGE_STATE_PATH)
-
-    def _parse_event_time(self, time_str: str, event_date: datetime) -> tuple[datetime, datetime]:
-        patterns = [
-            r'(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})',
-            r'(\d{1,2})\s*[–-]\s*(\d{1,2})',
-        ]
-        
-        chinese_pattern = r'(上午|下午)(\d{1,2})點.*?(上午|下午)(\d{1,2})點'
-        chinese_match = re.search(chinese_pattern, time_str)
-        
-        if chinese_match:
-            start_period, start_h, end_period, end_h = chinese_match.groups()
-            start_h = int(start_h)
-            end_h = int(end_h)
-            
-            if start_period == '下午' and start_h != 12:
-                start_h += 12
-            elif start_period == '上午' and start_h == 12:
-                start_h = 0
-                
-            if end_period == '下午' and end_h != 12:
-                end_h += 12
-            elif end_period == '上午' and end_h == 12:
-                end_h = 0
-            
-            start = event_date.replace(hour=start_h, minute=0, second=0, microsecond=0)
-            end = event_date.replace(hour=end_h, minute=0, second=0, microsecond=0)
-            return start, end
-        
-        for pattern in patterns:
-            match = re.search(pattern, time_str)
-            if match:
-                groups = match.groups()
-                if len(groups) == 4:
-                    start_h, start_m, end_h, end_m = map[int](int, groups)
-                else:
-                    start_h, end_h = map[int](int, groups)
-                    start_m, end_m = 0, 0
-                
-                start = event_date.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
-                end = event_date.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
-                return start, end
-        
-        return None, None
 
 _calendar_instance: CalendarAutomation = None
 

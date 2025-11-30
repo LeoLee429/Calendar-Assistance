@@ -9,12 +9,12 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 from voice_handler import VoiceHandler
-from schedule_parser import ScheduleParser, ScheduleParseError
+from ai_service import AIService, ScheduleParseError, get_ai_service
 from calendar_automation import CalendarAutomation, get_calendar_automation
 
 # Global instances
 voice_handler: VoiceHandler = None
-schedule_parser: ScheduleParser = None
+ai_service: AIService = None
 calendar_automation: CalendarAutomation = None
 
 # Global variables
@@ -24,13 +24,14 @@ greeting: str = "Hello, I am your scheduling assistance. How may I help you?"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - startup events."""
-    global voice_handler, schedule_parser, calendar_automation
+    global voice_handler, ai_service, calendar_automation
 
     print("Voice Calendar Assistant initiating...")
 
     # Create directory if not exist
     os.makedirs(staticFolder, exist_ok=True)
 
+    # load OpenAI API key
     env_file = Path(".env")
     if env_file.exists():
         from dotenv import load_dotenv
@@ -45,7 +46,7 @@ async def lifespan(app: FastAPI):
 
     # Service init
     voice_handler = VoiceHandler(output_dir=staticFolder)
-    schedule_parser = ScheduleParser()
+    ai_service = get_ai_service()
     calendar_automation = get_calendar_automation()
 
     logged_in = await calendar_automation.initialize(headless=True)
@@ -148,19 +149,19 @@ def _parse_schedule(text: str) -> tuple[dict | None, str | None]:
     Returns (event, None) on success, (None, error_message) on failure.
     """
     try:
-        event = schedule_parser.parse_schedule_request(text)
-        return event, None
+        parsed = ai_service.parse_schedule(text)
+        return parsed, None
     
     except ScheduleParseError as spe:
         if spe.field == "api_error":
             return None, f"Service error: {spe.message}"
-        elif spe.field in ["title", "date", "time"]:
-            return None, f"Could you please provide more details? {spe.message}"
-        else:
-            return None, "I couldn't understand that. Could you please try again?"
+        return None, spe.message
     
     except Exception as e:
+        import traceback
+        print(f"Unexpected error type: {type(e).__name__}")
         print(f"Unexpected error: {e}")
+        traceback.print_exc()
         return None, "Sorry, there was an unexpected error."
 
 def _check_calendar_login() -> tuple[bool, str | None]:
@@ -184,15 +185,20 @@ async def _create_calendar_event(event: dict) -> tuple[bool, str | None]:
         if not is_ready:
             return False, error
         
-        # Check for conflicts
-        is_available, conflict_info = await calendar_automation.check_time_slot_available(
-            event['start_time'], event['end_time']
+        # Fetch existing events for the date
+        existing_events = await calendar_automation.get_events_for_date(event['start_time'])
+        
+        is_available, conflict_info = ai_service.check_conflict(
+            existing_events,
+            event['start_time'],
+            event['end_time']
         )
         
         if not is_available:
             time_str = event['start_time'].strftime('%B %d at %I:%M %p')
-            conflict_detail = f": {conflict_info}" if conflict_info else ""
-            return False, f"You have a conflict at {time_str}. Please choose another time."
+            await calendar_automation.show_calendar_date(event['start_time'])
+            conflict_detail = f" with '{conflict_info}'" if conflict_info else ""
+            return False, f"You have a conflict at {time_str}{conflict_detail}. Please choose another time."
         
         # Create event
         success, message = await calendar_automation.create_event(
